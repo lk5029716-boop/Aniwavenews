@@ -1,0 +1,12 @@
+[build]
+  command = "npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter @workspace/animex build"
+  publish = "artifacts/animex/dist/public"
+
+[build.environment]
+  NODE_ENV = "production"
+  BASE_PATH = "/"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
