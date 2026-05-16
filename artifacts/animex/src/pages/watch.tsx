@@ -3,6 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import Header from "@/components/layout/Header";
 import HlsPlayer from "@/components/player/HlsPlayer";
+import { apiUrl } from "@/config";
 
 interface Server {
   id: string;
@@ -50,7 +51,7 @@ export default function WatchPage() {
   // Load episode list for the sidebar
   useEffect(() => {
     if (!id) return;
-    fetch(`/api/episodes?id=${encodeURIComponent(id)}`)
+    fetch(apiUrl(`/api/episodes?id=${encodeURIComponent(id)}`))
       .then((r) => r.json())
       .then((data: { episodes: Episode[] }) => setEpisodes(data.episodes ?? []))
       .catch(() => {});
@@ -66,12 +67,11 @@ export default function WatchPage() {
     setStream(null);
     setStreamError(null);
 
-    fetch(`/api/servers?id=${encodeURIComponent(id)}&ep=${ep}&type=${streamType}`)
+    fetch(apiUrl(`/api/servers?id=${encodeURIComponent(id)}&ep=${ep}&type=${streamType}`))
       .then((r) => r.json())
       .then((data: { servers: Server[] }) => {
         const list = data.servers ?? [];
         setServers(list);
-        // Auto-select first server and load its stream
         if (list.length > 0) {
           setSelectedServer(list[0]!.name);
         } else {
@@ -90,7 +90,7 @@ export default function WatchPage() {
       setStreamError(null);
       setStream(null);
 
-      const url = `/api/stream?id=${encodeURIComponent(id)}&ep=${ep}&type=${streamType}&server=${encodeURIComponent(serverName)}`;
+      const url = apiUrl(`/api/stream?id=${encodeURIComponent(id)}&ep=${ep}&type=${streamType}&server=${encodeURIComponent(serverName)}`);
       fetch(url)
         .then(async (r) => {
           if (!r.ok) {
@@ -105,7 +105,7 @@ export default function WatchPage() {
             return;
           }
           // Proxy the m3u8 through our server to handle CORS / CDN restrictions
-          const proxied = `/api/proxy?url=${encodeURIComponent(data.m3u8)}`;
+          const proxied = apiUrl(`/api/proxy?url=${encodeURIComponent(data.m3u8)}`);
           setStream({ ...data, m3u8: proxied });
         })
         .catch((err: Error) => setStreamError(err.message ?? "Stream extraction failed."))
