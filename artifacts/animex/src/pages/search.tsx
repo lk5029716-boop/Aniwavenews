@@ -4,6 +4,7 @@ import { Search, Loader2 } from "lucide-react";
 import Header from "@/components/layout/Header";
 import AnimeCard from "@/components/anime/AnimeCard";
 import AnimeCardSkeleton from "@/components/anime/AnimeCardSkeleton";
+import { apiUrl } from "@/config";
 
 interface SearchResult {
   id: string;
@@ -28,7 +29,7 @@ export default function SearchPage() {
     setError(null);
     setResults([]);
 
-    fetch(`/api/search?q=${encodeURIComponent(q)}`)
+    fetch(apiUrl(`/api/search?q=${encodeURIComponent(q)}`))
       .then((r) => r.json())
       .then((data: { results: SearchResult[] }) => {
         setResults(data.results ?? []);
