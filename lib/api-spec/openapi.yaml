@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AnimeX API — wraps Aniwaves.ru and fallback sources for anime streaming
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: anime
+    description: Anime streaming operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,173 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /search:
+    get:
+      operationId: searchAnime
+      tags: [anime]
+      summary: Search anime
+      description: Search anime by keyword
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: Bad request
+
+  /details:
+    get:
+      operationId: getAnimeDetails
+      tags: [anime]
+      summary: Get anime details
+      description: Anime metadata including title, genres, episode count
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Anime details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeDetails"
+        "400":
+          description: Bad request
+
+  /episodes:
+    get:
+      operationId: getEpisodes
+      tags: [anime]
+      summary: Get episode list
+      description: Full episode list with filler flags
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Episode list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EpisodesResponse"
+        "400":
+          description: Bad request
+
+  /servers:
+    get:
+      operationId: getServers
+      tags: [anime]
+      summary: Get streaming servers
+      description: Available streaming servers for an episode
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: ep
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [sub, dub, raw]
+            default: sub
+      responses:
+        "200":
+          description: Server list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServersResponse"
+        "400":
+          description: Bad request
+
+  /stream:
+    get:
+      operationId: getStream
+      tags: [anime]
+      summary: Get stream URL
+      description: Direct m3u8 URL with skip times and subtitle tracks
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: ep
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [sub, dub, raw]
+            default: sub
+        - name: server
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stream source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreamSource"
+        "400":
+          description: Bad request
+        "404":
+          description: Not found
+        "502":
+          description: Extraction failed
+
+  /proxy:
+    get:
+      operationId: proxyStream
+      tags: [anime]
+      summary: Proxy a stream URL
+      description: Proxy an m3u8 or media URL through the server with proper headers
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: referer
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proxied content
+        "400":
+          description: Bad request
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +203,153 @@ components:
       required:
         - status
 
+    AnimeSearchResult:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        poster:
+          type: string
+        type:
+          type: string
+        episodes:
+          type: object
+          properties:
+            sub:
+              type: integer
+            dub:
+              type: integer
+          required: [sub, dub]
+      required: [id, title, poster, type, episodes]
+
+    SearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnimeSearchResult"
+      required: [results]
+
+    AnimeDetails:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        poster:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        aired:
+          type: string
+        genres:
+          type: array
+          items:
+            type: string
+        episodes:
+          type: object
+          properties:
+            sub:
+              type: integer
+            dub:
+              type: integer
+            total:
+              type: integer
+          required: [sub, dub, total]
+      required: [id, title, poster, description, type, status, aired, genres, episodes]
+
+    Episode:
+      type: object
+      properties:
+        number:
+          type: integer
+        id:
+          type: string
+        title:
+          type: ["string", "null"]
+        isFiller:
+          type: boolean
+      required: [number, id, isFiller]
+
+    EpisodesResponse:
+      type: object
+      properties:
+        episodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Episode"
+      required: [episodes]
+
+    Server:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [sub, dub, raw]
+      required: [id, name, type]
+
+    ServersResponse:
+      type: object
+      properties:
+        servers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Server"
+      required: [servers]
+
+    SkipTime:
+      type: object
+      properties:
+        start:
+          type: number
+        end:
+          type: number
+      required: [start, end]
+
+    Subtitle:
+      type: object
+      properties:
+        lang:
+          type: string
+        label:
+          type: string
+        url:
+          type: string
+      required: [lang, label, url]
+
+    StreamSource:
+      type: object
+      properties:
+        type:
+          type: string
+        provider:
+          type: string
+        m3u8:
+          type: string
+        subtitles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Subtitle"
+        thumbnails:
+          type: ["string", "null"]
+        intro:
+          oneOf:
+            - $ref: "#/components/schemas/SkipTime"
+            - type: "null"
+        outro:
+          oneOf:
+            - $ref: "#/components/schemas/SkipTime"
+            - type: "null"
+      required: [type, provider, m3u8, subtitles]
