@@ -97,9 +97,13 @@ async function buildAll() {
       "zeromq",
       "zeromq-prebuilt",
       "playwright",
+      "playwright-core",
       "puppeteer",
       "puppeteer-core",
       "electron",
+      "chromium-bidi",
+      "chromium-bidi/lib/cjs/bidiMapper/BidiMapper",
+      "chromium-bidi/lib/cjs/cdp/CdpConnection",
     ],
     sourcemap: "linked",
     plugins: [

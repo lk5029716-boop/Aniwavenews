@@ -5,6 +5,44 @@ import { extractEchovideo, isEchovideoHost } from "./echovideo.js";
 import { extractWeneverbeenfree, isWeneverbeenfreeHost } from "./weneverbeenfree.js";
 import type { StreamSource } from "../types.js";
 
+/** Hosts that are Vidplay clones/mirrors */
+const VIDPLAY_LIKE_HOSTS = [
+  "vidplay.online",
+  "vidplay.lol",
+  "vidcloud.lol",
+  "mcloud.bz",
+  "vidstreaming.io",
+  "goload.pro",
+];
+
+/** Hosts that use the MegaCloud getSources+decrypt pipeline */
+const MEGACLOUD_LIKE_HOSTS = [
+  "megacloud.tv",
+  "rapid-cloud.co",
+  "rabbitstream.net",
+];
+
+/** Hosts that use the WeneverBeenFree/myvidplay MegaCloud-style pipeline */
+const WNBF_LIKE_HOSTS = [
+  "weneverbeenfree.com",
+  "myvidplay.com",   // DGHG server - same MegaCloud-style API
+];
+
+/** Hosts that use the Echovideo getSources pipeline */
+const ECHOVIDEO_LIKE_HOSTS = [
+  "play.echovideo.ru",
+  "echovideo.ru",
+];
+
+function matchHost(url: string, hostList: string[]): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return hostList.some((h) => host.includes(h));
+  } catch {
+    return false;
+  }
+}
+
 export async function extractStream(
   embedUrl: string,
   serverName: string,
@@ -13,32 +51,36 @@ export async function extractStream(
   const lowerName = serverName.toLowerCase();
 
   logger.info(
-    { embedUrl: embedUrl.slice(0, 80), serverName },
+    { embedUrl: embedUrl.slice(0, 90), serverName },
     "dispatching to provider extractor"
   );
 
-  // weneverbeenfree.com (BYFMS / DGHG servers on Aniwaves)
+  // ── Echovideo (aniwaves primary CDN) ────────────────────────────────────────
   if (
-    isWeneverbeenfreeHost(embedUrl) ||
-    lowerName.includes("byfms") ||
-    lowerName.includes("dghg") ||
-    lowerName.includes("weneverbeenfree")
-  ) {
-    logger.info({ serverName }, "routing to WeneverBeenFree extractor");
-    return extractWeneverbeenfree(embedUrl, skipData);
-  }
-
-  // Echovideo (Aniwaves primary provider — Vidplay server also routes here)
-  if (
-    isEchovideoHost(embedUrl) ||
-    lowerName.includes("echo")
+    matchHost(embedUrl, ECHOVIDEO_LIKE_HOSTS) ||
+    isEchovideoHost(embedUrl)
   ) {
     logger.info({ serverName }, "routing to Echovideo extractor");
     return extractEchovideo(embedUrl, skipData);
   }
 
-  // MegaCloud / RapidCloud / RabbitStream
+  // ── WeneverBeenFree / myvidplay.com ─────────────────────────────────────────
+  // BYFMS → weneverbeenfree.com, DGHG → myvidplay.com
+  // Both use the MegaCloud-style getSources API with key-embedded AES encryption
   if (
+    matchHost(embedUrl, WNBF_LIKE_HOSTS) ||
+    isWeneverbeenfreeHost(embedUrl) ||
+    lowerName.includes("byfms") ||
+    lowerName.includes("dghg") ||
+    lowerName.includes("weneverbeenfree")
+  ) {
+    logger.info({ serverName, host: new URL(embedUrl).hostname }, "routing to WeneverBeenFree/myvidplay extractor");
+    return extractWeneverbeenfree(embedUrl, skipData);
+  }
+
+  // ── MegaCloud / RapidCloud / RabbitStream ────────────────────────────────────
+  if (
+    matchHost(embedUrl, MEGACLOUD_LIKE_HOSTS) ||
     isMegacloudHost(embedUrl) ||
     lowerName.includes("megacloud") ||
     lowerName.includes("rapidcloud") ||
@@ -48,8 +90,9 @@ export async function extractStream(
     return extractMegacloud(embedUrl);
   }
 
-  // Vidplay and its mirrors (VidCloud)
+  // ── Vidplay and mirrors ──────────────────────────────────────────────────────
   if (
+    matchHost(embedUrl, VIDPLAY_LIKE_HOSTS) ||
     isVidplayHost(embedUrl) ||
     lowerName.includes("vidplay") ||
     lowerName.includes("vidcloud")
@@ -58,27 +101,46 @@ export async function extractStream(
     return extractVidplay(embedUrl);
   }
 
-  // Unknown provider — try embed-N pattern (Echovideo-style) first, then others
+  // ── Unknown host — heuristic fallback ────────────────────────────────────────
   logger.warn(
-    { serverName, embedUrl: embedUrl.slice(0, 80) },
-    "unknown provider, trying all extractors in order"
+    { serverName, embedUrl: embedUrl.slice(0, 90) },
+    "unknown provider host — running heuristic detection"
   );
 
-  // Check if URL looks like an echovideo embed (has /embed-N/ in path)
-  if (/\/embed-\d+\//.test(embedUrl)) {
+  // Echovideo-style: path contains /embed-N/ and ends with a token
+  if (/\/embed-\d+\/[A-Za-z0-9_-]{20,}/.test(embedUrl)) {
+    logger.info({ serverName }, "heuristic: looks like Echovideo (embed-N path)");
     const echoResult = await extractEchovideo(embedUrl, skipData);
     if (echoResult?.m3u8) return echoResult;
   }
 
-  const vidplayResult = await extractVidplay(embedUrl);
-  if (vidplayResult?.m3u8) return vidplayResult;
+  // MegaCloud-style: path starts with /e/ and has a short alphanumeric ID
+  if (/\/e\/[a-z0-9]{10,16}/.test(embedUrl)) {
+    logger.info({ serverName }, "heuristic: looks like WeneverBeenFree/MegaCloud (/e/ path)");
+    const wnbfResult = await extractWeneverbeenfree(embedUrl, skipData);
+    if (wnbfResult?.m3u8) return wnbfResult;
 
-  const megacloudResult = await extractMegacloud(embedUrl);
-  if (megacloudResult?.m3u8) return megacloudResult;
+    const megaResult = await extractMegacloud(embedUrl);
+    if (megaResult?.m3u8) return megaResult;
+  }
 
-  const wnbfResult = await extractWeneverbeenfree(embedUrl, skipData);
-  if (wnbfResult?.m3u8) return wnbfResult;
+  // Last resort: try all extractors
+  logger.warn({ serverName }, "trying all extractors in sequence as last resort");
 
-  logger.error({ serverName, embedUrl: embedUrl.slice(0, 80) }, "all extractors failed");
+  const attempts = [
+    () => extractWeneverbeenfree(embedUrl, skipData),
+    () => extractEchovideo(embedUrl, skipData),
+    () => extractMegacloud(embedUrl),
+    () => extractVidplay(embedUrl),
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      const result = await attempt();
+      if (result?.m3u8) return result;
+    } catch {}
+  }
+
+  logger.error({ serverName, embedUrl: embedUrl.slice(0, 90) }, "all extractors failed");
   return null;
 }
