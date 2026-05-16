@@ -6,6 +6,11 @@ import SearchPage from "@/pages/search";
 import AnimePage from "@/pages/anime";
 import WatchPage from "@/pages/watch";
 import NotFound from "@/pages/not-found";
+import { setBaseUrl } from "@workspace/api-client-react";
+
+setBaseUrl(
+  import.meta.env.VITE_API_URL ?? "https://aniwavenews.onrender.com",
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
