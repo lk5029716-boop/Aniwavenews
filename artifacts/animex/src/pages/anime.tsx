@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Play, Loader2, Star } from "lucide-react";
 import Header from "@/components/layout/Header";
+import { apiUrl } from "@/config";
 
 interface AnimeDetails {
   id: string;
@@ -37,8 +38,8 @@ export default function AnimePage() {
     setError(null);
 
     Promise.all([
-      fetch(`/api/details?id=${encodeURIComponent(id)}`).then((r) => r.json()),
-      fetch(`/api/episodes?id=${encodeURIComponent(id)}`).then((r) => r.json()),
+      fetch(apiUrl(`/api/details?id=${encodeURIComponent(id)}`)).then((r) => r.json()),
+      fetch(apiUrl(`/api/episodes?id=${encodeURIComponent(id)}`)).then((r) => r.json()),
     ])
       .then(([det, eps]) => {
         setDetails(det as AnimeDetails);
