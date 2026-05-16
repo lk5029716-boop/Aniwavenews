@@ -24,9 +24,6 @@ import https from "https";
 import { logger } from "../../logger.js";
 import type { StreamSource, SkipTime, Subtitle } from "../types.js";
 
-const CHROMIUM_PATH =
-  "/nix/store/0n9rl5l9syy808xi9bk4f6dhnfrvhkww-playwright-browsers-chromium/chromium-1080/chrome-linux/chrome";
-
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
@@ -85,7 +82,6 @@ export async function extractViaPlaywright(
     const { chromium } = await import("playwright-core");
 
     browser = await chromium.launch({
-      executablePath: CHROMIUM_PATH,
       headless: true,
       args: [
         "--no-sandbox",
